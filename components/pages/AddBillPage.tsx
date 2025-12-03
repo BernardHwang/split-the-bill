@@ -143,14 +143,14 @@ export default function AddBillPage({
 
     const calculateTotals = () => {
         let baseAmount = parseFloat(formData.amount) || 0;
-        
+
         // For custom split, use total items amount as base
         if (splitType === "custom") {
             baseAmount = formData.items.reduce((sum, item) => {
                 return sum + (parseFloat(String(item.amount)) || 0);
             }, 0);
         }
-        
+
         const taxRaw = parseFloat(formData.taxValue) || 0;
         const tipsRaw = parseFloat(formData.tipsValue) || 0;
         const taxAmount = taxIsPercent ? (baseAmount * taxRaw) / 100 : taxRaw;
@@ -312,16 +312,16 @@ export default function AddBillPage({
 
     return (
         <div className="max-w-xl mx-auto space-y-4 md:space-y-6">
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="">
                 <button
                     onClick={onCancel}
-                    className="p-2 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+                    className="p-2 flex items-center gap-2 md:gap-4 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
                 >
                     <ArrowLeft size={20} className="text-gray-900" />
+                    <h1 className="text-lg md:text-xl font-bold text-gray-900">
+                        Create New Bill
+                    </h1>
                 </button>
-                <h1 className="text-lg md:text-xl font-bold text-gray-900">
-                    Create New Bill
-                </h1>
             </div>
 
             {/* Step 1: bill info (description, amount, paid by, participants) */}
@@ -821,8 +821,17 @@ export default function AddBillPage({
                                     "distribution" in summary &&
                                     summary.distribution.length > 0
                                 ) {
-                                    const { baseAmount, taxAmount, tipsAmount, totalAmount } = calculateTotals();
-                                    const itemSubtotal = summary.distribution.reduce((sum, d) => sum + d.itemAmount, 0);
+                                    const {
+                                        baseAmount,
+                                        taxAmount,
+                                        tipsAmount,
+                                        totalAmount,
+                                    } = calculateTotals();
+                                    const itemSubtotal =
+                                        summary.distribution.reduce(
+                                            (sum, d) => sum + d.itemAmount,
+                                            0
+                                        );
                                     return (
                                         <Card className="p-6 bg-indigo-50 border border-indigo-200">
                                             <p className="text-sm font-semibold text-gray-700 mb-3">
@@ -857,7 +866,16 @@ export default function AddBillPage({
                                                                         )}
                                                                     </div>
                                                                     <div className="text-xs text-gray-500">
-                                                                        Items: ${item.itemAmount.toFixed(2)} + Tax/Tips: ${item.share.toFixed(2)}
+                                                                        Items: $
+                                                                        {item.itemAmount.toFixed(
+                                                                            2
+                                                                        )}{" "}
+                                                                        +
+                                                                        Tax/Tips:
+                                                                        $
+                                                                        {item.share.toFixed(
+                                                                            2
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -867,16 +885,27 @@ export default function AddBillPage({
                                             </div>
                                             <div className="border-t border-indigo-300 pt-2 space-y-1">
                                                 <p className="text-xs text-gray-600">
-                                                    <span className="font-medium">Total: ${totalAmount.toFixed(2)}</span>
+                                                    <span className="font-medium">
+                                                        Total: $
+                                                        {totalAmount.toFixed(2)}
+                                                    </span>
                                                 </p>
                                                 <p className="text-xs text-gray-500">
-                                                    Items: ${itemSubtotal.toFixed(2)}
+                                                    Items: $
+                                                    {itemSubtotal.toFixed(2)}
                                                 </p>
                                                 <p className="text-xs text-gray-500">
-                                                    Tax: ${taxAmount.toFixed(2)} {taxIsPercent ? `(${formData.taxValue}%)` : '(fixed)'}
+                                                    Tax: ${taxAmount.toFixed(2)}{" "}
+                                                    {taxIsPercent
+                                                        ? `(${formData.taxValue}%)`
+                                                        : "(fixed)"}
                                                 </p>
                                                 <p className="text-xs text-gray-500">
-                                                    Tips: ${tipsAmount.toFixed(2)} {tipsIsPercent ? `(${formData.tipsValue}%)` : '(fixed)'}
+                                                    Tips: $
+                                                    {tipsAmount.toFixed(2)}{" "}
+                                                    {tipsIsPercent
+                                                        ? `(${formData.tipsValue}%)`
+                                                        : "(fixed)"}
                                                 </p>
                                             </div>
                                         </Card>

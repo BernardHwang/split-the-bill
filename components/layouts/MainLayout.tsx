@@ -94,7 +94,7 @@ export default function MainLayout({
           </div>
           <button
             onClick={logout}
-            className="m-4 text-sm flex flex-row items-center hover:bg-gray-100 rounded-lg transition-colors"
+            className="m-4 text-sm flex flex-row items-center text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <LogOut size={16} className='mr-2'/> Sign Out
           </button>
@@ -182,7 +182,7 @@ export default function MainLayout({
 
       {/* Main Content Area */}
       <main className="flex-1 md:pl-64 pt-14 md:pt-0 pb-20 md:pb-6">
-        <div className="p-4 md:p-8 max-w-3xl mx-auto w-full">{children}</div>
+        <div className="p-4 pt-10 md:p-8 max-w-3xl mx-auto w-full">{children}</div>
       </main>
 
       {/* Mobile menu overlay */}

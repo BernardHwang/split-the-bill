@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ArrowLeft, Trash2, Check } from "lucide-react";
+import { ArrowLeft, Trash2, Check, X } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
 import { Button } from "@/components/ui/Button";
@@ -94,6 +94,24 @@ export default function BillDetailPage({
         }
     };
 
+    // Participant unmarks their pending payment status
+    const handleUnmarkPending = async (personId: string) => {
+        try {
+            setUpdating(true);
+            const currentPending = bill.pendingStatus || {};
+            const newPending = {
+                ...currentPending,
+                [personId]: false,
+            };
+            await onUpdateBill(bill.id, { pendingStatus: newPending });
+        } catch (error) {
+            console.error("Error unmarking payment as pending:", error);
+            alert("Failed to unmark payment");
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     // Payer confirms a participant's pending payment -> set paidStatus[personId]=true and clear pending
     const handleConfirmPaid = async (personId: string) => {
         try {
@@ -114,6 +132,21 @@ export default function BillDetailPage({
         }
     };
 
+    // Payer unmarks a paid status
+    const handleUnmarkPaid = async (personId: string) => {
+        try {
+            setUpdating(true);
+            const currentPaid = bill.paidStatus || {};
+            const newPaid = { ...currentPaid, [personId]: false };
+            await onUpdateBill(bill.id, { paidStatus: newPaid });
+        } catch (error) {
+            console.error("Error unmarking paid status:", error);
+            alert("Failed to unmark paid status");
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     const handleDelete = () => {
         if (confirm("Are you sure you want to delete this bill?")) {
             onDeleteBill(bill.id);
@@ -123,15 +156,13 @@ export default function BillDetailPage({
 
     return (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-right-8">
-            <div className="flex items-center gap-2 md:gap-4">
-                <button
-                    onClick={onBack}
-                    className="p-2 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
-                >
-                    <ArrowLeft size={20} />
-                </button>
+            <button
+                onClick={onBack}
+                className="p-2 flex items-center gap-2 text-gray-700 md:gap-4 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+            >
+                <ArrowLeft size={20} />
                 <h1 className="text-lg md:text-xl font-bold">Bill Details</h1>
-            </div>
+            </button>
 
             <Card className="p-4 md:p-6">
                 <div className="flex justify-between items-start mb-4 md:mb-6 gap-2">
@@ -206,16 +237,62 @@ export default function BillDetailPage({
                                     <div className="flex items-center gap-2">
                                         {/* If already paid */}
                                         {isPaid && (
-                                            <div className="text-xs font-semibold text-green-600 ml-2">
-                                                Paid
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-xs font-semibold text-green-600">
+                                                    Paid
+                                                </div>
+                                                {authenticatedUser?.uid ===
+                                                    bill.paidBy && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleUnmarkPaid(
+                                                                item.personId
+                                                            )
+                                                        }
+                                                        disabled={updating}
+                                                        className="px-2 py-1 text-xs font-medium rounded bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+                                                    >
+                                                        Undo
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
 
                                         {/* If pending (participant marked paid but awaiting payer confirmation) */}
                                         {bill.pendingStatus?.[item.personId] &&
                                             !isPaid && (
-                                                <div className="text-xs font-semibold text-yellow-600 ml-2">
-                                                    Pending
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-xs font-semibold text-yellow-600">
+                                                        Pending
+                                                    </div>
+                                                    {authenticatedUser?.uid ===
+                                                        item.personId && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleUnmarkPending(
+                                                                    item.personId
+                                                                )
+                                                            }
+                                                            disabled={updating}
+                                                            className="px-2 py-1 text-xs font-medium rounded bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+                                                        >
+                                                            Undo
+                                                        </button>
+                                                    )}
+                                                    {authenticatedUser?.uid ===
+                                                        bill.paidBy && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleUnmarkPending(
+                                                                    item.personId
+                                                                )
+                                                            }
+                                                            disabled={updating}
+                                                            className="px-2 py-1 text-xs font-medium rounded bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -253,7 +330,7 @@ export default function BillDetailPage({
                                                         )
                                                     }
                                                     disabled={updating}
-                                                    className="p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+                                                    className="px-2 py-1 text-xs font-medium rounded bg-green-50 text-green-600 hover:bg-green-100 transition-all"
                                                 >
                                                     Confirm
                                                 </button>

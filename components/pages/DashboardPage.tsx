@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Plus, Receipt, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Receipt, TrendingUp, TrendingDown, CheckCircle, Clock } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
 import { Button } from "@/components/ui/Button";
@@ -46,6 +46,15 @@ export default function DashboardPage({
                     : 0;
             return itemAmount + share;
         }
+    };
+
+    // Check if all participants in a bill have paid
+    const isBillCompleted = (bill: Bill) => {
+        // Check if all people who owe money (splitAmong, excluding paidBy) have paid
+        const peopleWhoPay = bill.splitAmong.filter((id) => id !== bill.paidBy);
+        if (peopleWhoPay.length === 0) return true; // No one else needs to pay
+
+        return peopleWhoPay.every((personId) => bill.paidStatus?.[personId] || false);
     };
 
     const totals = useMemo(() => {
@@ -166,38 +175,63 @@ export default function DashboardPage({
                             <p className="text-sm font-medium">No bills yet.</p>
                         </Card>
                     ) : (
-                        bills.map((bill) => (
-                            <button
-                                key={bill.id}
-                                onClick={() => onViewBill(bill.id)}
-                                className="w-full bg-white p-3 md:p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all text-left flex justify-between items-center gap-2 md:gap-4 group"
-                            >
-                                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
-                                    <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 rounded-xl flex-shrink-0 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-                                        <Receipt
-                                            size={18}
-                                            className="md:block hidden"
-                                        />
-                                        <Receipt
-                                            size={16}
-                                            className="md:hidden"
-                                        />
+                        bills.map((bill) => {
+                            const isCompleted = isBillCompleted(bill);
+                            return (
+                                <button
+                                    key={bill.id}
+                                    onClick={() => onViewBill(bill.id)}
+                                    className="w-full bg-white p-3 md:p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all text-left flex justify-between items-center gap-2 md:gap-4 group"
+                                >
+                                    <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                                        <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 rounded-xl flex-shrink-0 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                                            <Receipt
+                                                size={18}
+                                                className="md:block hidden"
+                                            />
+                                            <Receipt
+                                                size={16}
+                                                className="md:hidden"
+                                            />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-gray-900 text-sm md:text-base truncate">
+                                                {bill.description}
+                                            </h4>
+                                            <p className="text-xs text-gray-500 truncate">
+                                                Paid by{" "}
+                                                {bill.paidByName || bill.paidBy}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-gray-900 text-sm md:text-base truncate">
-                                            {bill.description}
-                                        </h4>
-                                        <p className="text-xs text-gray-500 truncate">
-                                            Paid by{" "}
-                                            {bill.paidByName || bill.paidBy}
-                                        </p>
+                                    <div className="flex items-center gap-2 md:gap-3">
+                                        {/* Status Badge */}
+                                        <div className={`flex items-center gap-1 px-2 md:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                            isCompleted
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-orange-100 text-orange-700'
+                                        }`}>
+                                            {isCompleted ? (
+                                                <>
+                                                    <CheckCircle size={14} />
+                                                    <span className="hidden md:inline">Completed</span>
+                                                    <span className="md:hidden">Done</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Clock size={14} />
+                                                    <span className="hidden md:inline">Ongoing</span>
+                                                    <span className="md:hidden">In Progress</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <span className="font-bold text-gray-900 text-sm md:text-lg whitespace-nowrap">
+                                            ${bill.amount.toFixed(2)}
+                                        </span>
                                     </div>
-                                </div>
-                                <span className="font-bold text-gray-900 text-sm md:text-lg whitespace-nowrap">
-                                    ${bill.amount.toFixed(2)}
-                                </span>
-                            </button>
-                        ))
+                                </button>
+                            );
+                        })
                     )}
                 </div>
             </div>

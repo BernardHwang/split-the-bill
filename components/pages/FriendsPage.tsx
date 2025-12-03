@@ -24,8 +24,10 @@ export default function FriendsPage({
     authenticatedUser,
 }: FriendsPageProps) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [friendsSearchQuery, setFriendsSearchQuery] = useState("");
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [requestSending, setRequestSending] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState<string | null>(null);
     const { users, loading: usersLoading } = useUsers();
     const {
         incomingRequests,
@@ -55,6 +57,18 @@ export default function FriendsPage({
                     user.email.toLowerCase().includes(query))
         );
     }, [searchQuery, friends, authenticatedUser?.uid, users, outgoingRequests]);
+
+    // Filter friends based on search query
+    const filteredFriends = useMemo(() => {
+        if (!friendsSearchQuery.trim()) return friends;
+
+        const query = friendsSearchQuery.toLowerCase();
+        return friends.filter(
+            (friend) =>
+                friend.name.toLowerCase().includes(query) ||
+                (friend.email && friend.email.toLowerCase().includes(query))
+        );
+    }, [friendsSearchQuery, friends]);
 
     const handleSendFriendRequest = async (user: (typeof users)[0]) => {
         try {
@@ -88,6 +102,24 @@ export default function FriendsPage({
         }
     };
 
+    const handleDeleteFriend = async (friendId: string, friendName: string) => {
+        if (
+            confirm(
+                `Are you sure you want to remove ${friendName} from your friends?`
+            )
+        ) {
+            try {
+                setDeleting(friendId);
+                await onDeleteFriend(friendId);
+            } catch (error) {
+                console.error("Error deleting friend:", error);
+                alert("Failed to delete friend");
+            } finally {
+                setDeleting(null);
+            }
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -104,10 +136,9 @@ export default function FriendsPage({
                     Find Friends
                 </label>
                 <div className="relative">
-                    <Search
-                        className="absolute left-3 top-3.5 text-gray-400"
-                        size={20}
-                    />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                        <Search size={18} />
+                    </div>
                     <Input
                         placeholder="Search by name or email..."
                         value={searchQuery}
@@ -118,13 +149,25 @@ export default function FriendsPage({
                         onFocus={() =>
                             searchQuery && setShowSearchResults(true)
                         }
-                        className="pl-10"
+                        className="pl-12 pr-10 text-gray-700 bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-gray-200 hover:border-indigo-300 focus:border-indigo-500 rounded-lg transition-colors"
                     />
+                    {searchQuery && (
+                        <button
+                            onClick={() => {
+                                setSearchQuery("");
+                                setShowSearchResults(false);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                            aria-label="Clear search"
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
 
                     {/* Search Results Dropdown */}
                     {showSearchResults && searchQuery.trim() && (
                         <>
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-80 overflow-y-auto">
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-indigo-100 rounded-xl shadow-xl z-10 max-h-80 overflow-y-auto">
                                 {usersLoading ? (
                                     <div className="px-4 py-8 text-center flex items-center justify-center">
                                         <Loader2
@@ -266,15 +309,45 @@ export default function FriendsPage({
 
             {/* Friends List */}
             <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
-                    Friends ({friends.length})
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-900">
+                        Friends ({friends.length})
+                    </h3>
+                </div>
+
+                {friends.length > 0 && (
+                    <div className="mb-4">
+                        <div className="relative">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                                <Search size={18} />
+                            </div>
+                            <Input
+                                placeholder="Search friends..."
+                                value={friendsSearchQuery}
+                                onChange={(e) =>
+                                    setFriendsSearchQuery(e.target.value)
+                                }
+                                className="w-max pl-12 pr-10 text-gray-700 bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-gray-200 hover:border-indigo-300 focus:border-indigo-500 rounded-lg transition-colors"
+                            />
+                            {friendsSearchQuery && (
+                                <button
+                                    onClick={() => setFriendsSearchQuery("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    aria-label="Clear search"
+                                >
+                                    <X size={18} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {friends.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {friends.map((friend) => (
+                        {filteredFriends.map((friend) => (
                             <Card
                                 key={friend.id}
-                                className="p-4 flex items-center justify-between"
+                                className="p-4 flex items-center justify-between hover:shadow-md transition-shadow"
                             >
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-100 to-indigo-50 flex-shrink-0 flex items-center justify-center text-indigo-600 font-bold text-sm">
@@ -292,13 +365,31 @@ export default function FriendsPage({
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => onDeleteFriend(friend.id)}
-                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                                    onClick={() =>
+                                        handleDeleteFriend(friend.id, friend.name)
+                                    }
+                                    disabled={deleting === friend.id}
+                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50"
+                                    title="Delete friend"
                                 >
-                                    <Trash2 size={16} />
+                                    {deleting === friend.id ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                        <Trash2 size={16} />
+                                    )}
                                 </button>
                             </Card>
                         ))}
+                        {filteredFriends.length === 0 && friendsSearchQuery && (
+                            <div className="col-span-full text-center py-8">
+                                <p className="text-gray-500 text-sm font-medium">
+                                    No friends found
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Try a different search
+                                </p>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <Card className="p-8 text-center">

@@ -11,6 +11,7 @@ import {
   deleteDoc,
   getDocs,
   getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -151,9 +152,8 @@ export const useFriendRequests = (user: User | null | undefined) => {
       
       const senderData = senderDoc.data();
 
-      // Add friend to current user's friends subcollection
-      await addDoc(collection(db, 'users', user.uid, 'friends'), {
-        id: senderId,
+      // Add friend to current user's friends subcollection using senderId as doc ID
+      await setDoc(doc(db, 'users', user.uid, 'friends', senderId), {
         name: senderData.name || 'User',
         email: senderData.email,
         addedAt: new Date(),
@@ -165,8 +165,8 @@ export const useFriendRequests = (user: User | null | undefined) => {
       
       if (currentUserDoc.exists()) {
         const currentUserData = currentUserDoc.data();
-        await addDoc(collection(db, 'users', senderId, 'friends'), {
-          id: user.uid,
+        // Add current user to sender's friends subcollection using user.uid as doc ID
+        await setDoc(doc(db, 'users', senderId, 'friends', user.uid), {
           name: currentUserData.name || 'User',
           email: currentUserData.email,
           addedAt: new Date(),

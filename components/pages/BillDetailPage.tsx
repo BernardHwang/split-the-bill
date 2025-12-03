@@ -174,13 +174,16 @@ export default function BillDetailPage({
                             Paid by {paidByPerson?.name}
                         </p>
                     </div>
-                    <button
-                        onClick={handleDelete}
-                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                        <Trash2 size={18} className="md:block hidden" />
-                        <Trash2 size={16} className="md:hidden" />
-                    </button>
+                    {authenticatedUser?.uid === bill.paidBy && (
+                        <button
+                            onClick={handleDelete}
+                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                            title="Delete bill"
+                        >
+                            <Trash2 size={18} className="md:block hidden" />
+                            <Trash2 size={16} className="md:hidden" />
+                        </button>
+                    )}
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded-xl mb-6">

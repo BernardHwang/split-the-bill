@@ -792,7 +792,7 @@ export default function AddBillPage({
                                                             value=""
                                                             className="text-gray-500"
                                                         >
-                                                            -- none --
+                                                            All
                                                         </option>
                                                         {allParticipants.map(
                                                             (p) => (
@@ -805,43 +805,6 @@ export default function AddBillPage({
                                                             )
                                                         )}
                                                     </select>
-                                                </div>
-
-                                                <div className="text-gray-700 font-medium">
-                                                    Or share:
-                                                </div>
-                                                <div className="flex gap-1 flex-wrap">
-                                                    {allParticipants.map(
-                                                        (p) => {
-                                                            const active =
-                                                                item.sharedWith.includes(
-                                                                    p.id
-                                                                );
-                                                            return (
-                                                                <button
-                                                                    key={p.id}
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        toggleItemSharedUser(
-                                                                            item.id,
-                                                                            p.id
-                                                                        )
-                                                                    }
-                                                                    className={`px-2 py-1 rounded-lg border-2 font-medium ${
-                                                                        active
-                                                                            ? "bg-indigo-100 border-indigo-400 text-indigo-700"
-                                                                            : "bg-white border-gray-300 text-gray-700"
-                                                                    }`}
-                                                                >
-                                                                    {
-                                                                        p.name.split(
-                                                                            " "
-                                                                        )[0]
-                                                                    }
-                                                                </button>
-                                                            );
-                                                        }
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>

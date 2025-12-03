@@ -26,3 +26,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Accessibility: darken commonly-used muted text utilities in light mode so they're readable on white backgrounds.
+   These override Tailwind's utility classes only when the OS/browser prefers light color scheme. */
+@media (prefers-color-scheme: light), (prefers-color-scheme: no-preference) {
+  .text-gray-400 { color: #6b7280 !important; } /* darker than default gray-400 */
+  .text-gray-500 { color: #4b5563 !important; } /* use gray-700 tone for better contrast */
+  .text-gray-600 { color: #374151 !important; } /* ensure secondary text is clearly readable */
+  .text-indigo-100 { color: #64748b !important; } /* avoid very light indigo on white when used outside gradient */
+}

@@ -22,7 +22,7 @@ export const Button: React.FC<ButtonProps> = ({
       'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
     outline:
       'border-2 border-gray-200 text-gray-700 hover:bg-gray-50',
-    ghost: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
+    ghost: 'text-gray-700 hover:bg-gray-100 hover:text-gray-900',
     danger: 'bg-red-50 text-red-600 hover:bg-red-100',
   };
 

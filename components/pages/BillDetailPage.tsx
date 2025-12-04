@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ArrowLeft, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, Trash2, Check, ReceiptText } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
 interface BillDetailPageProps {
@@ -56,8 +55,24 @@ export default function BillDetailPage({
             const itemizedTotal = Object.values(
                 bill.itemizedAmounts || {}
             ).reduce((a, b) => a + b, 0);
-            const taxAmount = (baseAmount * taxPercent) / 100;
-            const tipsAmount = (baseAmount * tipsPercent) / 100;
+
+            // Determine if baseAmount already includes tax/tips (it should if saved correctly now)
+            // But we need to calculate the add-on amounts for distribution
+            
+            // Logic:
+            // The `itemizedAmounts` stored in DB are just the sum of items per person.
+            // We need to distribute tax and tips proportional to that.
+            
+            // Re-calculate tax/tips amounts based on percents
+            // NOTE: If bill.amount was saved as Total (Items + Tax + Tips), we can back-calculate.
+            // However, the stored `taxPercentage` and `tipsPercentage` are reliably percents now.
+            
+            // If we assume bill.amount is the GRAND TOTAL:
+            // We need the subtotal of items to calculate tax/tips share accurately?
+            // Actually, simply: PersonShare = ItemAmount + (ItemAmount/TotalItems * (TotalTax+TotalTips))
+            
+            const taxAmount = (itemizedTotal * taxPercent) / 100;
+            const tipsAmount = (itemizedTotal * tipsPercent) / 100;
             const totalTaxAndTips = taxAmount + tipsAmount;
 
             return bill.splitAmong.map((personId) => {
@@ -112,7 +127,7 @@ export default function BillDetailPage({
         }
     };
 
-    // Payer confirms a participant's pending payment -> set paidStatus[personId]=true and clear pending
+    // Payer confirms a participant's pending payment
     const handleConfirmPaid = async (personId: string) => {
         try {
             setUpdating(true);
@@ -195,10 +210,62 @@ export default function BillDetailPage({
                     </p>
                 </div>
 
+                {/* --- NEW SECTION: Item Breakdown --- */}
+                {bill.items && bill.items.length > 0 && (
+                    <div className="mb-6">
+                         <div className="flex items-center gap-2 mb-3">
+                             <ReceiptText size={18} className="text-gray-500" />
+                            <h3 className="font-bold text-gray-900">
+                                Itemized Breakdown
+                            </h3>
+                         </div>
+                        <div className="border border-gray-100 rounded-xl overflow-hidden text-sm">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 text-gray-500 font-medium">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Item</th>
+                                        <th className="px-4 py-2 text-right">Cost</th>
+                                        <th className="px-4 py-2 text-right">Assigned To</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {bill.items.map((item) => {
+                                        let assignedText = "Shared (All)";
+                                        if (item.assignedTo) {
+                                            const p = allParticipants.find(p => p.id === item.assignedTo);
+                                            assignedText = p?.name || "Unknown";
+                                        } else if (item.sharedWith && item.sharedWith.length > 0) {
+                                             assignedText = `Shared (${item.sharedWith.length})`;
+                                        }
+
+                                        return (
+                                            <tr key={item.id}>
+                                                <td className="px-4 py-2 text-gray-800">{item.name || "Unnamed Item"}</td>
+                                                <td className="px-4 py-2 text-right font-medium text-gray-800">
+                                                    ${parseFloat(String(item.amount)).toFixed(2)}
+                                                </td>
+                                                <td className="px-4 py-2 text-right text-gray-500">
+                                                    {assignedText}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                            {bill.splitType === 'custom' && (
+                                <div className="bg-gray-50 px-4 py-2 text-right text-xs text-gray-500 border-t border-gray-100">
+                                    + {bill.taxPercentage || 0}% Tax & {bill.tipsPercentage || 0}% Tips
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {/* ----------------------------------- */}
+
                 <h3 className="font-bold text-gray-900 mb-4">
                     {bill.splitType === "equal"
                         ? "Split equally among:"
-                        : "Split breakdown:"}
+                        : "Payment Split (includes Tax/Tips):"}
                 </h3>
                 <div className="space-y-3">
                     {amounts.map((item) => {
@@ -207,10 +274,7 @@ export default function BillDetailPage({
                         );
                         const isPaid =
                             bill.paidStatus?.[item.personId] || false;
-                        const canTogglePaid =
-                            item.personId !== bill.paidBy &&
-                            authenticatedUser?.uid === item.personId;
-
+                        
                         return (
                             <div
                                 key={item.personId}

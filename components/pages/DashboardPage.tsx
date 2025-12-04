@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Plus, Receipt, TrendingUp, TrendingDown, CheckCircle, Clock } from "lucide-react";
+import { Receipt, TrendingUp, TrendingDown, CheckCircle, Clock } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
 interface DashboardPageProps {
@@ -24,34 +23,52 @@ export default function DashboardPage({
     onNavigateTo,
     authenticatedUser,
 }: DashboardPageProps) {
-    const calculateAmounts = (bill: Bill, userId: string) => {
-        if (bill.splitType === "equal") {
-            return bill.amount / bill.splitAmong.length;
-        } else {
-            const baseAmount = bill.amount;
-            const taxPercent = bill.taxPercentage || 0;
-            const tipsPercent = bill.tipsPercentage || 0;
+    
+    // Helper for safe number parsing
+    const safeNumber = (value: any) => {
+        const num = parseFloat(value);
+        return isNaN(num) ? 0 : num;
+    };
 
-            const itemizedTotal = Object.values(
-                bill.itemizedAmounts || {}
-            ).reduce((a, b) => a + b, 0);
-            const taxAmount = (baseAmount * taxPercent) / 100;
-            const tipsAmount = (baseAmount * tipsPercent) / 100;
+    const calculateAmounts = (bill: Bill, userId: string) => {
+        const totalAmount = safeNumber(bill.amount);
+
+        // Safety check: if total amount is invalid/0, return 0 to prevent NaN
+        if (totalAmount === 0 && bill.splitType === 'equal') return 0;
+
+        if (bill.splitType === "equal") {
+            const splitCount = bill.splitAmong?.length || 1;
+            return totalAmount / splitCount;
+        } else {
+            // Custom split validation
+            const taxPercent = safeNumber(bill.taxPercentage);
+            const tipsPercent = safeNumber(bill.tipsPercentage);
+
+            const itemizedAmounts = bill.itemizedAmounts || {};
+            const itemizedTotal = Object.values(itemizedAmounts).reduce(
+                (a, b) => a + safeNumber(b),
+                0
+            );
+
+            // Calculate absolute tax/tips amounts derived from the Itemized Total 
+            const taxAmount = (itemizedTotal * taxPercent) / 100;
+            const tipsAmount = (itemizedTotal * tipsPercent) / 100;
             const totalTaxAndTips = taxAmount + tipsAmount;
 
-            const itemAmount = bill.itemizedAmounts?.[userId] || 0;
-            const share =
-                itemizedTotal > 0
-                    ? (itemAmount / itemizedTotal) * totalTaxAndTips
-                    : 0;
-            return itemAmount + share;
+            const userItemAmount = safeNumber(itemizedAmounts[userId]);
+            
+            // Avoid divide by zero
+            if (itemizedTotal === 0) return userItemAmount;
+
+            const shareOfOverheads = (userItemAmount / itemizedTotal) * totalTaxAndTips;
+            return userItemAmount + shareOfOverheads;
         }
     };
 
     // Check if all participants in a bill have paid
     const isBillCompleted = (bill: Bill) => {
         // Check if all people who owe money (splitAmong, excluding paidBy) have paid
-        const peopleWhoPay = bill.splitAmong.filter((id) => id !== bill.paidBy);
+        const peopleWhoPay = (bill.splitAmong || []).filter((id) => id !== bill.paidBy);
         if (peopleWhoPay.length === 0) return true; // No one else needs to pay
 
         return peopleWhoPay.every((personId) => bill.paidStatus?.[personId] || false);
@@ -65,21 +82,31 @@ export default function DashboardPage({
         bills.forEach((bill) => {
             if (!authenticatedUser) return;
 
-            // If user is in splitAmong (they owe money)
-            if (bill.splitAmong.includes(authenticatedUser.uid)) {
-                const amount = calculateAmounts(bill, authenticatedUser.uid);
-                const isPaid =
-                    bill.paidStatus?.[authenticatedUser.uid] || false;
-                const isPending =
-                    bill.pendingStatus?.[authenticatedUser.uid] || false;
+            // Check if user is involved in the bill (either paid for it OR is in the split list)
+            if (bill.splitAmong?.includes(authenticatedUser.uid)) {
+                
+                const myShare = calculateAmounts(bill, authenticatedUser.uid);
+                
+                // CASE 1: I am the Payer
+                if (bill.paidBy === authenticatedUser.uid) {
+                    // If I paid the bill, my own share is considered "Paid" (settled expense).
+                    // I don't owe anyone for this.
+                    totalPaid += myShare;
+                } 
+                // CASE 2: I am a Participant (I owe money)
+                else {
+                    const isPaid = bill.paidStatus?.[authenticatedUser.uid] || false;
+                    const isPending = bill.pendingStatus?.[authenticatedUser.uid] || false;
 
-                if (isPaid) {
-                    totalPaid += amount;
-                } else if (isPending) {
-                    totalPending += amount;
-                    totalUnpaid += amount; // pending still counts as unpaid until confirmed
-                } else {
-                    totalUnpaid += amount;
+                    if (isPaid) {
+                        totalPaid += myShare;
+                    } else if (isPending) {
+                        // Pending counts as Unpaid until confirmed, but we track the pending amount
+                        totalPending += myShare;
+                        totalUnpaid += myShare; 
+                    } else {
+                        totalUnpaid += myShare;
+                    }
                 }
             }
         });
@@ -107,7 +134,7 @@ export default function DashboardPage({
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="relative z-10">
                     <p className="text-indigo-100 font-medium mb-1 text-sm">
-                        Total To Pay
+                        You Owe
                     </p>
                     <h2 className="text-3xl md:text-5xl font-bold mb-4 md:mb-6">
                         ${totals.totalUnpaid.toFixed(2)}
@@ -122,7 +149,7 @@ export default function DashboardPage({
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingDown size={16} className="text-red-500" />
                         <p className="text-gray-600 text-xs md:text-sm font-medium">
-                            Unpaid
+                            To Pay
                         </p>
                     </div>
                     <p className="text-2xl md:text-3xl font-bold text-gray-900">
@@ -133,7 +160,7 @@ export default function DashboardPage({
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingUp size={16} className="text-green-500" />
                         <p className="text-gray-600 text-xs md:text-sm font-medium">
-                            Paid
+                            Paid (Settled)
                         </p>
                     </div>
                     <p className="text-2xl md:text-3xl font-bold text-gray-900">
@@ -177,6 +204,19 @@ export default function DashboardPage({
                     ) : (
                         bills.map((bill) => {
                             const isCompleted = isBillCompleted(bill);
+                            
+                            // Calculate specific user share safely
+                            let myShare = 0;
+                            let isPayer = false;
+                            
+                            if (authenticatedUser) {
+                                myShare = calculateAmounts(bill, authenticatedUser.uid);
+                                isPayer = bill.paidBy === authenticatedUser.uid;
+                            }
+                            
+                            // If I am the payer, my "share" is what I consumed/spent.
+                            const displayAmount = myShare; 
+
                             return (
                                 <button
                                     key={bill.id}
@@ -200,13 +240,14 @@ export default function DashboardPage({
                                             </h4>
                                             <p className="text-xs text-gray-500 truncate">
                                                 Paid by{" "}
-                                                {bill.paidByName || bill.paidBy}
+                                                {isPayer ? "You" : (bill.paidByName || "Unknown")}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 md:gap-3">
+                                    
+                                    <div className="flex items-center gap-3 md:gap-4">
                                         {/* Status Badge */}
-                                        <div className={`flex items-center gap-1 px-2 md:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                        <div className={`hidden md:flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                                             isCompleted
                                                 ? 'bg-green-100 text-green-700'
                                                 : 'bg-orange-100 text-orange-700'
@@ -214,20 +255,27 @@ export default function DashboardPage({
                                             {isCompleted ? (
                                                 <>
                                                     <CheckCircle size={14} />
-                                                    <span className="hidden md:inline">Completed</span>
-                                                    <span className="md:hidden">Done</span>
+                                                    <span>Completed</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <Clock size={14} />
-                                                    <span className="hidden md:inline">Ongoing</span>
-                                                    <span className="md:hidden">In Progress</span>
+                                                    <span>Ongoing</span>
                                                 </>
                                             )}
                                         </div>
-                                        <span className="font-bold text-gray-900 text-sm md:text-lg whitespace-nowrap">
-                                            ${bill.amount.toFixed(2)}
-                                        </span>
+
+                                        <div className="text-right min-w-[80px]">
+                                            <p className="text-xs text-gray-500 font-medium mb-0.5">
+                                                Your Share
+                                            </p>
+                                            <span className="font-bold text-gray-900 text-sm md:text-lg block">
+                                                ${displayAmount.toFixed(2)}
+                                            </span>
+                                            <p className="text-[10px] md:text-xs text-gray-400">
+                                                Total: ${safeNumber(bill.amount).toFixed(2)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </button>
                             );

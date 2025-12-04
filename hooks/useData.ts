@@ -17,6 +17,14 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+export interface BillItem {
+    id: string;
+    name: string;
+    amount: number | string;
+    assignedTo?: string;
+    sharedWith: string[];
+}
+
 export interface Bill {
     id: string;
     description: string;
@@ -25,11 +33,13 @@ export interface Bill {
     paidByName?: string;
     splitAmong: string[];
     splitType: "equal" | "custom";
+    // Added items array to interface so we can store/read specific item details
+    items?: BillItem[]; 
     itemizedAmounts?: Record<string, number>; // userId -> amount
     taxPercentage?: number;
     tipsPercentage?: number;
     paidStatus?: Record<string, boolean>; // userId -> paid status
-    pendingStatus?: Record<string, boolean>; // userId -> pending (participant indicated paid, awaiting payer confirmation)
+    pendingStatus?: Record<string, boolean>; // userId -> pending
     timestamp: any;
 }
 
@@ -72,7 +82,6 @@ export const useData = (user: User | null) => {
 
         let payerBills: Bill[] = [];
         let splitBills: Bill[] = [];
-        let friendsLoaded = false;
 
         const updateBills = () => {
             // Combine both arrays and remove duplicates
@@ -153,7 +162,6 @@ export const useData = (user: User | null) => {
 
         // Find and delete friend requests in both directions
         try {
-            // Query for requests sent by current user to friend
             const outgoingQuery = query(
                 collection(db, "friendRequests"),
                 where("senderId", "==", user.uid),
@@ -162,7 +170,6 @@ export const useData = (user: User | null) => {
             const outgoingDocs = await getDocs(outgoingQuery);
             outgoingDocs.forEach((doc) => batch.delete(doc.ref));
 
-            // Query for requests sent by friend to current user
             const incomingQuery = query(
                 collection(db, "friendRequests"),
                 where("senderId", "==", friendUserId),
@@ -171,9 +178,7 @@ export const useData = (user: User | null) => {
             const incomingDocs = await getDocs(incomingQuery);
             incomingDocs.forEach((doc) => batch.delete(doc.ref));
 
-            // Commit all deletions
             await batch.commit();
-            console.log("Friend and friend requests deleted:", friendUserId);
         } catch (error) {
             console.error("Error deleting friend and requests:", error);
             throw error;
@@ -186,13 +191,13 @@ export const useData = (user: User | null) => {
         paidBy: string;
         splitAmong: string[];
         splitType: "equal" | "custom";
+        items?: BillItem[]; // Accept items in creation
         itemizedAmounts?: Record<string, number>;
         taxPercentage?: number;
         tipsPercentage?: number;
     }) => {
         if (!user) throw new Error("User not authenticated");
 
-        // Fetch the payer's name
         let paidByName = "Unknown";
         try {
             const payerDoc = await getDoc(doc(db, "users", billData.paidBy));
@@ -203,21 +208,22 @@ export const useData = (user: User | null) => {
             console.error("Error fetching payer name:", error);
         }
 
-        // Initialize paidStatus for all split members (unpaid by default)
         const paidStatus: Record<string, boolean> = {};
-        // Initialize pendingStatus for all split members (no pending payments yet)
         const pendingStatus: Record<string, boolean> = {};
         billData.splitAmong.forEach((uid) => {
-            // mark payer as already paid
             paidStatus[uid] = uid === billData.paidBy;
             pendingStatus[uid] = false;
         });
 
-        // Create bill in shared bills collection
+        // Ensure amount is saved as a number
+        const finalAmount = typeof billData.amount === 'string' 
+            ? parseFloat(billData.amount) 
+            : billData.amount;
+
         const billRef = await addDoc(collection(db, "bills"), {
             ...billData,
             paidByName,
-            amount: parseFloat(billData.amount.toString()),
+            amount: finalAmount,
             paidStatus,
             pendingStatus,
             timestamp: serverTimestamp(),

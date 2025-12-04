@@ -505,7 +505,7 @@ export default function AddBillPage({
                                 </span>
                             </label>
 
-                            <label
+                            {/* <label
                                 className="flex items-center p-3 border-2 rounded-xl cursor-pointer transition-all"
                                 style={{
                                     borderColor:
@@ -527,7 +527,7 @@ export default function AddBillPage({
                                 <span className="ml-3 font-medium text-gray-900">
                                     Custom Split (by items + tax + tips)
                                 </span>
-                            </label>
+                            </label> */}
                         </div>
                     </Card>
 

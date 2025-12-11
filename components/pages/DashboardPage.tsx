@@ -245,9 +245,9 @@ export default function DashboardPage({
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center gap-3 md:gap-4">
+                                    <div className="flex items-center md:gap-4">
                                         {/* Status Badge */}
-                                        <div className={`hidden md:flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                                        <div className={`flex flex-row md:flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
                                             isCompleted
                                                 ? 'bg-green-100 text-green-700'
                                                 : 'bg-orange-100 text-orange-700'
@@ -265,7 +265,7 @@ export default function DashboardPage({
                                             )}
                                         </div>
 
-                                        <div className="text-right min-w-[80px]">
+                                        <div className="text-right min-w-[70px]">
                                             <p className="text-xs text-gray-500 font-medium mb-0.5">
                                                 Your Share
                                             </p>

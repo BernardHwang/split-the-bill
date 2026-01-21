@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Trash2, Search, UserPlus, Loader2, Check, X } from "lucide-react";
+import React, { useState, useMemo, useCallback } from "react";
+import { Trash2, Search, UserPlus, Loader2, Check, X, TrendingUp, TrendingDown } from "lucide-react";
 import { User } from "firebase/auth";
-import { Friend } from "@/hooks/useData";
+import { Bill, Friend } from "@/hooks/useData";
 import { useUsers } from "@/hooks/useUsers";
 import { useFriendRequests } from "@/hooks/useFriendRequests";
+import { useBalances } from "@/hooks/useBalances";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 
 interface FriendsPageProps {
     friends: Friend[];
+    bills: Bill[];
     onDeleteFriend: (friendId: string) => void;
     onNavigateToAddBill: () => void;
     authenticatedUser?: User | null;
@@ -19,6 +21,7 @@ interface FriendsPageProps {
 
 export default function FriendsPage({
     friends,
+    bills,
     onDeleteFriend,
     onNavigateToAddBill,
     authenticatedUser,
@@ -29,6 +32,7 @@ export default function FriendsPage({
     const [requestSending, setRequestSending] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const { users, loading: usersLoading } = useUsers();
+    const balances = useBalances(bills, friends, authenticatedUser?.uid);
     const {
         incomingRequests,
         outgoingRequests,
@@ -70,7 +74,7 @@ export default function FriendsPage({
         );
     }, [friendsSearchQuery, friends]);
 
-    const handleSendFriendRequest = async (user: (typeof users)[0]) => {
+    const handleSendFriendRequest = useCallback(async (user: (typeof users)[0]) => {
         try {
             setRequestSending(user.uid);
             await sendFriendRequest(user.uid, user.name, user.email);
@@ -82,27 +86,27 @@ export default function FriendsPage({
         } finally {
             setRequestSending(null);
         }
-    };
+    }, [sendFriendRequest]);
 
-    const handleAcceptRequest = async (requestId: string, senderId: string) => {
+    const handleAcceptRequest = useCallback(async (requestId: string, senderId: string) => {
         try {
             await acceptFriendRequest(requestId, senderId);
         } catch (error) {
             console.error("Error accepting request:", error);
             alert("Failed to accept friend request");
         }
-    };
+    }, [acceptFriendRequest]);
 
-    const handleRejectRequest = async (requestId: string) => {
+    const handleRejectRequest = useCallback(async (requestId: string) => {
         try {
             await rejectFriendRequest(requestId);
         } catch (error) {
             console.error("Error rejecting request:", error);
             alert("Failed to reject friend request");
         }
-    };
+    }, [rejectFriendRequest]);
 
-    const handleDeleteFriend = async (friendId: string, friendName: string) => {
+    const handleDeleteFriend = useCallback(async (friendId: string, friendName: string) => {
         if (
             confirm(
                 `Are you sure you want to remove ${friendName} from your friends?`
@@ -118,7 +122,7 @@ export default function FriendsPage({
                 setDeleting(null);
             }
         }
-    };
+    }, [onDeleteFriend]);
 
     return (
         <div className="space-y-6">
@@ -344,42 +348,96 @@ export default function FriendsPage({
 
                 {friends.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {filteredFriends.map((friend) => (
-                            <Card
-                                key={friend.id}
-                                className="p-4 flex items-center justify-between hover:shadow-md transition-shadow"
-                            >
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-100 to-indigo-50 flex-shrink-0 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                                        {friend.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="font-medium text-gray-900 text-sm truncate">
-                                            {friend.name}
-                                        </p>
-                                        {friend.email && (
-                                            <p className="text-xs text-gray-500 truncate">
-                                                {friend.email}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() =>
-                                        handleDeleteFriend(friend.id, friend.name)
-                                    }
-                                    disabled={deleting === friend.id}
-                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50"
-                                    title="Delete friend"
+                        {filteredFriends.map((friend) => {
+                            const balance = balances[friend.id];
+                            const hasBalance = balance && (balance.owes > 0 || balance.owed > 0);
+                            const netBalance = balance?.netBalance ?? 0;
+                            const isUserOws = netBalance < 0;
+                            
+                            return (
+                                <Card
+                                    key={friend.id}
+                                    className="p-4 flex flex-col hover:shadow-md transition-shadow"
                                 >
-                                    {deleting === friend.id ? (
-                                        <Loader2 size={16} className="animate-spin" />
-                                    ) : (
-                                        <Trash2 size={16} />
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-100 to-indigo-50 flex-shrink-0 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                                                {friend.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-gray-900 text-sm truncate">
+                                                    {friend.name}
+                                                </p>
+                                                {friend.email && (
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {friend.email}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() =>
+                                                handleDeleteFriend(friend.id, friend.name)
+                                            }
+                                            disabled={deleting === friend.id}
+                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50"
+                                            title="Delete friend"
+                                        >
+                                            {deleting === friend.id ? (
+                                                <Loader2 size={16} className="animate-spin" />
+                                            ) : (
+                                                <Trash2 size={16} />
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    {/* Balance Information */}
+                                    {hasBalance && (
+                                        <div className={`rounded-lg p-3 mb-3 flex items-center justify-between ${
+                                            isUserOws
+                                                ? 'bg-red-50 border border-red-100'
+                                                : 'bg-green-50 border border-green-100'
+                                        }`}>
+                                            <div className="flex items-center gap-2">
+                                                {isUserOws ? (
+                                                    <TrendingDown size={16} className="text-red-500" />
+                                                ) : (
+                                                    <TrendingUp size={16} className="text-green-500" />
+                                                )}
+                                                <span className={`text-xs font-medium ${
+                                                    isUserOws ? 'text-red-700' : 'text-green-700'
+                                                }`}>
+                                                    {isUserOws ? 'You owe' : 'Owed to you'}
+                                                </span>
+                                            </div>
+                                            <span className={`font-bold ${
+                                                isUserOws ? 'text-red-600' : 'text-green-600'
+                                            }`}>
+                                                ${Math.abs(netBalance).toFixed(2)}
+                                            </span>
+                                        </div>
                                     )}
-                                </button>
-                            </Card>
-                        ))}
+
+                                    {/* Balance Details */}
+                                    {hasBalance && (
+                                        <div className="text-xs text-gray-600 space-y-1 pt-2 border-t border-gray-100">
+                                            {balance.owes > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>Owes you:</span>
+                                                    <span className="font-medium text-green-600">${balance.owes.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            {balance.owed > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>You owe:</span>
+                                                    <span className="font-medium text-red-600">${balance.owed.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Card>
+                            );
+                        })}
                         {filteredFriends.length === 0 && friendsSearchQuery && (
                             <div className="col-span-full text-center py-8">
                                 <p className="text-gray-500 text-sm font-medium">

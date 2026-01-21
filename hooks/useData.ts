@@ -83,18 +83,6 @@ export const useData = (user: User | null) => {
         let payerBills: Bill[] = [];
         let splitBills: Bill[] = [];
 
-        const updateBills = () => {
-            // Combine both arrays and remove duplicates
-            const allBills = [...payerBills, ...splitBills];
-            const uniqueBills = Array.from(
-                new Map(allBills.map((bill) => [bill.id, bill])).values()
-            );
-            uniqueBills.sort(
-                (a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.()
-            );
-            setBills(uniqueBills);
-        };
-
         const unsubscribePayerBills = onSnapshot(
             payerBillsQuery,
             (snapshot) => {
@@ -102,7 +90,16 @@ export const useData = (user: User | null) => {
                     id: doc.id,
                     ...doc.data(),
                 })) as Bill[];
-                updateBills();
+                
+                // Combine both arrays and remove duplicates
+                const allBills = [...payerBills, ...splitBills];
+                const uniqueBills = Array.from(
+                    new Map(allBills.map((bill) => [bill.id, bill])).values()
+                );
+                uniqueBills.sort(
+                    (a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.()
+                );
+                setBills(uniqueBills);
             }
         );
 
@@ -113,7 +110,16 @@ export const useData = (user: User | null) => {
                     id: doc.id,
                     ...doc.data(),
                 })) as Bill[];
-                updateBills();
+                
+                // Combine both arrays and remove duplicates
+                const allBills = [...payerBills, ...splitBills];
+                const uniqueBills = Array.from(
+                    new Map(allBills.map((bill) => [bill.id, bill])).values()
+                );
+                uniqueBills.sort(
+                    (a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.()
+                );
+                setBills(uniqueBills);
             }
         );
 

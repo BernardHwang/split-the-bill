@@ -67,6 +67,7 @@ export default function App() {
         return (
           <FriendsPage
             friends={friends}
+            bills={bills}
             onDeleteFriend={deleteFriend}
             onNavigateToAddBill={() => handleTabChange('add-bill')}
             authenticatedUser={user}

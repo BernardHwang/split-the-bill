@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { Receipt, TrendingUp, TrendingDown, CheckCircle, Clock } from "lucide-react";
+import React, { useMemo, useState, useCallback } from "react";
+import { Receipt, TrendingUp, TrendingDown, CheckCircle, Clock, ChevronDown, X, Search } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
 import { Card } from "@/components/ui/Card";
@@ -23,14 +23,19 @@ export default function DashboardPage({
     onNavigateTo,
     authenticatedUser,
 }: DashboardPageProps) {
+    const [tabView, setTabView] = useState<"all" | "pending" | "completed">("pending");
+    const [filterPaidBy, setFilterPaidBy] = useState<string>("");
+    const [searchQuery, setSearchQuery] = useState<string>("");
+    const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
     
-    // Helper for safe number parsing
-    const safeNumber = (value: any) => {
+    // Memoize safe number parsing
+    const safeNumber = useCallback((value: any) => {
         const num = parseFloat(value);
         return isNaN(num) ? 0 : num;
-    };
+    }, []);
 
-    const calculateAmounts = (bill: Bill, userId: string) => {
+    // Memoize calculateAmounts to prevent recreation on every render
+    const calculateAmounts = useCallback((bill: Bill, userId: string) => {
         const totalAmount = safeNumber(bill.amount);
 
         // Safety check: if total amount is invalid/0, return 0 to prevent NaN
@@ -63,23 +68,49 @@ export default function DashboardPage({
             const shareOfOverheads = (userItemAmount / itemizedTotal) * totalTaxAndTips;
             return userItemAmount + shareOfOverheads;
         }
-    };
+    }, [safeNumber]);
 
-    // Check if all participants in a bill have paid
-    const isBillCompleted = (bill: Bill) => {
+    // Memoize isBillCompleted to prevent recreation on every render
+    const isBillCompleted = useCallback((bill: Bill) => {
         // Check if all people who owe money (splitAmong, excluding paidBy) have paid
         const peopleWhoPay = (bill.splitAmong || []).filter((id) => id !== bill.paidBy);
         if (peopleWhoPay.length === 0) return true; // No one else needs to pay
 
         return peopleWhoPay.every((personId) => bill.paidStatus?.[personId] || false);
-    };
+    }, []);
+
+    // Filtered bills based on active filters - memoized with updated dependencies
+    const filteredBills = useMemo(() => {
+        return bills.filter((bill) => {
+            // Filter by tab view (all/pending/completed)
+            if (tabView !== "all") {
+                const isCompleted = isBillCompleted(bill);
+                if (tabView === "pending" && isCompleted) return false;
+                if (tabView === "completed" && !isCompleted) return false;
+            }
+
+            // Filter by who paid
+            if (filterPaidBy) {
+                if (filterPaidBy === "me" && bill.paidBy !== authenticatedUser?.uid) return false;
+                if (filterPaidBy !== "me" && bill.paidBy !== filterPaidBy) return false;
+            }
+
+            // Filter by search query (bill name/description)
+            if (searchQuery.trim()) {
+                const query = searchQuery.toLowerCase();
+                if (!bill.description.toLowerCase().includes(query)) return false;
+            }
+
+            return true;
+        });
+    }, [bills, filterPaidBy, tabView, searchQuery, authenticatedUser?.uid, isBillCompleted]);
 
     const totals = useMemo(() => {
         let totalUnpaid = 0;
         let totalPaid = 0;
         let totalPending = 0;
 
-        bills.forEach((bill) => {
+        filteredBills.forEach((bill) => {
             if (!authenticatedUser) return;
 
             // Check if user is involved in the bill (either paid for it OR is in the split list)
@@ -112,9 +143,9 @@ export default function DashboardPage({
         });
 
         return { totalUnpaid, totalPaid, totalPending };
-    }, [bills, authenticatedUser]);
+    }, [filteredBills, authenticatedUser, calculateAmounts]);
 
-    const totalBills = bills.length;
+    const totalBills = filteredBills.length;
 
     return (
         <div className="space-y-4 md:space-y-6">
@@ -187,22 +218,158 @@ export default function DashboardPage({
                 </Card>
             </div>
 
-            {/* Bills List */}
+            {/* Bills List with Tabs */}
             <div>
+                {/* Tabs - Better Alignment */}
+                <div className="flex items-center gap-6 mb-6 border-b border-gray-200">
+                    <button
+                        onClick={() => setTabView("all")}
+                        className={`pb-3 font-semibold text-sm md:text-base transition-colors relative whitespace-nowrap ${
+                            tabView === "all"
+                                ? "text-indigo-600"
+                                : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                        All
+                        {tabView === "all" && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"></div>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setTabView("pending")}
+                        className={`pb-3 font-semibold text-sm md:text-base transition-colors relative whitespace-nowrap ${
+                            tabView === "pending"
+                                ? "text-indigo-600"
+                                : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                        Pending
+                        {tabView === "pending" && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"></div>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setTabView("completed")}
+                        className={`pb-3 font-semibold text-sm md:text-base transition-colors relative whitespace-nowrap ${
+                            tabView === "completed"
+                                ? "text-indigo-600"
+                                : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                        Completed
+                        {tabView === "completed" && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600"></div>
+                        )}
+                    </button>
+                </div>
+
+                {/* Search and Filters Section */}
+                <div className="space-y-4 mb-4">
+                    {/* Search Bar */}
+                    <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                            <Search size={18} />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search bills by name..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-12 pr-10 py-3 bg-white border border-gray-200 rounded-lg hover:border-indigo-300 focus:border-indigo-500 focus:outline-none transition-colors text-sm"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                title="Clear search"
+                            >
+                                <X size={18} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Paid By Filter */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 md:flex-none">
+                            <button
+                                onClick={() => setShowPaidByDropdown(!showPaidByDropdown)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors text-sm font-medium text-gray-700 w-full md:w-auto"
+                            >
+                                <span>Paid By {filterPaidBy && <span className="text-indigo-600">✓</span>}</span>
+                                <ChevronDown size={16} />
+                            </button>
+                            {showPaidByDropdown && (
+                                <>
+                                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
+                                        <button
+                                            onClick={() => {
+                                                setFilterPaidBy("");
+                                                setShowPaidByDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-100"
+                                        >
+                                            Everyone
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setFilterPaidBy("me");
+                                                setShowPaidByDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-100 flex justify-between items-center"
+                                        >
+                                            Me
+                                            {filterPaidBy === "me" && <span className="text-indigo-600">✓</span>}
+                                        </button>
+                                        {friends.map((friend) => (
+                                            <button
+                                                key={friend.id}
+                                                onClick={() => {
+                                                    setFilterPaidBy(friend.id);
+                                                    setShowPaidByDropdown(false);
+                                                }}
+                                                className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-100 last:border-b-0 flex justify-between items-center"
+                                            >
+                                                {friend.name}
+                                                {filterPaidBy === friend.id && <span className="text-indigo-600">✓</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="fixed inset-0 z-10" onClick={() => setShowPaidByDropdown(false)} />
+                                </>
+                            )}
+                        </div>
+
+                        {/* Reset Filter Button */}
+                        {filterPaidBy && (
+                            <button
+                                onClick={() => {
+                                    setFilterPaidBy("");
+                                }}
+                                className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors text-sm font-medium text-gray-700"
+                                title="Clear filter"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Bills Title and Count */}
                 <h3 className="font-bold text-base md:text-lg text-gray-900 mb-3 md:mb-4">
-                    Recent Bills
+                    {tabView === "all" ? "All" : tabView === "pending" ? "Pending" : "Completed"} Bills {filteredBills.length > 0 && <span className="text-gray-500 font-normal">({filteredBills.length})</span>}
                 </h3>
+
                 <div className="space-y-3">
-                    {bills.length === 0 ? (
+                    {filteredBills.length === 0 ? (
                         <Card className="p-8 md:p-10 flex flex-col items-center justify-center text-gray-500 border-dashed">
                             <Receipt
                                 size={36}
                                 className="mb-3 md:mb-4 opacity-30"
                             />
-                            <p className="text-sm font-medium">No bills yet.</p>
+                            <p className="text-sm font-medium">No {tabView} bills found.</p>
                         </Card>
                     ) : (
-                        bills.map((bill) => {
+                        filteredBills.map((bill) => {
                             const isCompleted = isBillCompleted(bill);
                             
                             // Calculate specific user share safely

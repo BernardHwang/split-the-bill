@@ -28,6 +28,32 @@ export default function DashboardPage({
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
     
+    // Restore filter state from localStorage on mount
+    useEffect(() => {
+        try {
+            const savedTabView = localStorage.getItem("dashboardTabView") as "all" | "pending" | "completed" | null;
+            const savedFilterPaidBy = localStorage.getItem("dashboardFilterPaidBy");
+            const savedSearchQuery = localStorage.getItem("dashboardSearchQuery");
+            
+            if (savedTabView) setTabView(savedTabView);
+            if (savedFilterPaidBy) setFilterPaidBy(savedFilterPaidBy);
+            if (savedSearchQuery) setSearchQuery(savedSearchQuery);
+        } catch (error) {
+            console.error("Error restoring filter state:", error);
+        }
+    }, []);
+
+    // Save filter states to localStorage when they change
+    useEffect(() => {
+        try {
+            localStorage.setItem("dashboardTabView", tabView);
+            localStorage.setItem("dashboardFilterPaidBy", filterPaidBy);
+            localStorage.setItem("dashboardSearchQuery", searchQuery);
+        } catch (error) {
+            console.error("Error saving filter state:", error);
+        }
+    }, [tabView, filterPaidBy, searchQuery]);
+    
     // Save scroll position using window scroll event
     useEffect(() => {
         const handleScroll = () => {

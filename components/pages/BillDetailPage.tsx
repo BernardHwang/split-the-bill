@@ -231,11 +231,13 @@ export default function BillDetailPage({
                                 <tbody className="divide-y divide-gray-100">
                                     {bill.items.map((item) => {
                                         let assignedText = "Shared (All)";
-                                        if (item.assignedTo) {
-                                            const p = allParticipants.find(p => p.id === item.assignedTo);
-                                            assignedText = p?.name || "Unknown";
-                                        } else if (item.sharedWith && item.sharedWith.length > 0) {
-                                             assignedText = `Shared (${item.sharedWith.length})`;
+                                        if (item.sharedWith && item.sharedWith.length > 0) {
+                                            const names = item.sharedWith
+                                                .map(id => allParticipants.find(p => p.id === id)?.name)
+                                                .filter(Boolean);
+                                            assignedText = names.length > 0 
+                                                ? names.join(", ") 
+                                                : `Shared (${item.sharedWith.length})`;
                                         }
 
                                         return (

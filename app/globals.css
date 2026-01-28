@@ -35,3 +35,13 @@ body {
   .text-gray-600 { color: #374151 !important; } /* ensure secondary text is clearly readable */
   .text-indigo-100 { color: #64748b !important; } /* avoid very light indigo on white when used outside gradient */
 }
+
+/* Hide scrollbar while keeping scroll functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari and Opera */
+}

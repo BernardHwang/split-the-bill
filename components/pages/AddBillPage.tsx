@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import { User } from "firebase/auth";
 import { Friend, BillItem } from "@/hooks/useData"; // Ensure BillItem is imported
@@ -33,11 +33,17 @@ export default function AddBillPage({
     authenticatedUser,
     onCreateBill,
 }: AddBillPageProps) {
+    // Refs for scroll positioning
+    const containerRef = useRef<HTMLDivElement>(null);
+    const step1Ref = useRef<HTMLDivElement>(null);
+    const step2Ref = useRef<HTMLDivElement>(null);
+
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
     const [taxIsPercent, setTaxIsPercent] = useState(true);
     const [tipsIsPercent, setTipsIsPercent] = useState(true);
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         description: "",
@@ -49,6 +55,49 @@ export default function AddBillPage({
         items: [] as BillItem[],
         itemizedAmounts: {} as Record<string, number>,
     });
+
+    // Save form data to localStorage whenever it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem(
+                "billFormData",
+                JSON.stringify({
+                    formData,
+                    step,
+                    splitType,
+                    taxIsPercent,
+                    tipsIsPercent,
+                })
+            );
+        } catch (error) {
+            console.error("Error saving form data:", error);
+        }
+    }, [formData, step, splitType, taxIsPercent, tipsIsPercent]);
+
+    // Load form data from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("billFormData");
+            if (saved) {
+                const data = JSON.parse(saved);
+                setFormData(data.formData);
+                setStep(data.step);
+            }
+        } catch (error) {
+            console.error("Error loading form data:", error);
+        }
+    }, []);
+
+    // Scroll to appropriate section when step changes
+    useEffect(() => {
+        setTimeout(() => {
+            if (step === 1 && step1Ref.current) {
+                step1Ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+            } else if (step === 2 && step2Ref.current) {
+                step2Ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }, 0);
+    }, [step]);
 
     const allParticipants = useMemo(() => {
         const result = authenticatedUser
@@ -98,15 +147,16 @@ export default function AddBillPage({
         }));
     };
 
-    const setItemAssignedTo = (itemId: string, userId?: string) => {
+    const toggleItemAssignment = (itemId: string, userId: string) => {
         setFormData((prev) => ({
             ...prev,
             items: prev.items.map((i) =>
                 i.id === itemId
                     ? {
                           ...i,
-                          assignedTo: userId,
-                          sharedWith: userId ? [] : i.sharedWith,
+                          sharedWith: i.sharedWith.includes(userId)
+                              ? i.sharedWith.filter((id) => id !== userId)
+                              : [...i.sharedWith, userId],
                       }
                     : i
             ),
@@ -147,17 +197,15 @@ export default function AddBillPage({
 
             formData.items.forEach((item) => {
                 const amt = parseFloat(String(item.amount)) || 0;
-                if (item.assignedTo) {
-                    if (subtotals[item.assignedTo] === undefined)
-                        subtotals[item.assignedTo] = 0;
-                    subtotals[item.assignedTo] += amt;
-                } else if (item.sharedWith && item.sharedWith.length > 0) {
+                // If item has people assigned to it, split among those people
+                if (item.sharedWith && item.sharedWith.length > 0) {
                     const per = amt / item.sharedWith.length;
                     item.sharedWith.forEach((uid) => {
                         if (subtotals[uid] === undefined) subtotals[uid] = 0;
                         subtotals[uid] += per;
                     });
                 } else {
+                    // Otherwise, split equally among all participants
                     const count = formData.splitAmong.length || 1;
                     const per = amt / count;
                     formData.splitAmong.forEach((uid) => {
@@ -197,6 +245,8 @@ export default function AddBillPage({
     const handleFinish = async () => {
         try {
             setLoading(true);
+            // Clear saved data on successful submission
+            localStorage.removeItem("billFormData");
             if (onCreateBill) {
                 // FIXED: Calculate amount correctly for custom split
                 let calculatedTotalAmount = 0;
@@ -225,14 +275,8 @@ export default function AddBillPage({
 
                     formData.items.forEach((item) => {
                         const amt = parseFloat(String(item.amount)) || 0;
-                        if (item.assignedTo) {
-                            if (subtotals[item.assignedTo] === undefined)
-                                subtotals[item.assignedTo] = 0;
-                            subtotals[item.assignedTo] += amt;
-                        } else if (
-                            item.sharedWith &&
-                            item.sharedWith.length > 0
-                        ) {
+                        // If item has people assigned to it, split among those people
+                        if (item.sharedWith && item.sharedWith.length > 0) {
                             const per = amt / item.sharedWith.length;
                             item.sharedWith.forEach((uid) => {
                                 if (subtotals[uid] === undefined)
@@ -240,6 +284,7 @@ export default function AddBillPage({
                                 subtotals[uid] += per;
                             });
                         } else {
+                            // Otherwise, split equally among all participants
                             const count = formData.splitAmong.length || 1;
                             const per = amt / count;
                             formData.splitAmong.forEach((uid) => {
@@ -293,7 +338,10 @@ export default function AddBillPage({
     // but using the updated handleFinish
 
     return (
-        <div className="max-w-xl mx-auto space-y-4 md:space-y-6">
+        <div
+            ref={containerRef}
+            className="max-w-xl mx-auto space-y-4 md:space-y-6 pb-8"
+        >
             <div className="">
                 <button
                     onClick={onCancel}
@@ -307,7 +355,7 @@ export default function AddBillPage({
             </div>
 
             {step === 1 && (
-                <div className="space-y-6 animate-in fade-in">
+                <div ref={step1Ref} className="space-y-6 animate-in fade-in">
                     <Card className="p-6 space-y-4">
                         <Input
                             label="Description"
@@ -446,7 +494,7 @@ export default function AddBillPage({
             )}
 
             {step === 2 && (
-                <div className="space-y-6 animate-in fade-in">
+                <div ref={step2Ref} className="space-y-6 animate-in fade-in">
                     <div>
                         <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">
                             How to split?
@@ -733,44 +781,90 @@ export default function AddBillPage({
                                                 </button>
                                             </div>
 
-                                            <div className="flex gap-3 items-center flex-wrap text-sm">
-                                                <div className="text-gray-700 font-medium">
-                                                    Assign to:
+                                            <div className="space-y-2">
+                                                <div className="text-gray-700 font-medium text-sm">
+                                                    Assign to (select one or multiple):
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <select
-                                                        value={
-                                                            item.assignedTo ||
-                                                            ""
-                                                        }
-                                                        onChange={(e) =>
-                                                            setItemAssignedTo(
-                                                                item.id,
-                                                                e.target
-                                                                    .value ||
-                                                                    undefined
+                                                <div className="relative">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setOpenDropdown(
+                                                                openDropdown === item.id
+                                                                    ? null
+                                                                    : item.id
                                                             )
                                                         }
-                                                        className="p-2 border-2 border-gray-300 text-gray-900 bg-white rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                        className="w-full p-2 border-2 border-gray-300 text-gray-900 bg-white rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-left text-sm flex items-center justify-between"
                                                     >
-                                                        <option
-                                                            value=""
-                                                            className="text-gray-500"
+                                                        <span>
+                                                            {item.sharedWith.length === 0
+                                                                ? "Select people (or leave empty for all)"
+                                                                : `${item.sharedWith.length} selected`}
+                                                        </span>
+                                                        <span
+                                                            className={`transform transition-transform ${
+                                                                openDropdown === item.id
+                                                                    ? "rotate-180"
+                                                                    : ""
+                                                            }`}
                                                         >
-                                                            All
-                                                        </option>
-                                                        {allParticipants.map(
-                                                            (p) => (
-                                                                <option
-                                                                    key={p.id}
-                                                                    value={p.id}
-                                                                >
-                                                                    {p.name}
-                                                                </option>
-                                                            )
-                                                        )}
-                                                    </select>
+                                                            ▼
+                                                        </span>
+                                                    </button>
+
+                                                    {openDropdown === item.id && (
+                                                        <div className="absolute z-10 w-full mt-1 bg-white border-2 border-indigo-200 rounded-lg shadow-lg">
+                                                            {formData.splitAmong
+                                                                .map((uid) =>
+                                                                    allParticipants.find(
+                                                                        (p) =>
+                                                                            p.id ===
+                                                                            uid
+                                                                    )
+                                                                )
+                                                                .filter(Boolean)
+                                                                .map((person) => (
+                                                                    <label
+                                                                        key={
+                                                                            person
+                                                                                ?.id
+                                                                        }
+                                                                        className="flex items-center gap-2 px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                                    >
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={item.sharedWith.includes(
+                                                                                person
+                                                                                    ?.id ||
+                                                                                    ""
+                                                                            )}
+                                                                            onChange={() =>
+                                                                                toggleItemAssignment(
+                                                                                    item.id,
+                                                                                    person
+                                                                                        ?.id ||
+                                                                                        ""
+                                                                                )
+                                                                            }
+                                                                            className="w-4 h-4 cursor-pointer"
+                                                                        />
+                                                                        <span className="text-sm text-gray-700">
+                                                                            {
+                                                                                person
+                                                                                    ?.name
+                                                                            }
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                {item.sharedWith.length === 0 && (
+                                                    <div className="text-xs text-gray-500">
+                                                        (Not selected - will split equally among all {formData.splitAmong.length} people)
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

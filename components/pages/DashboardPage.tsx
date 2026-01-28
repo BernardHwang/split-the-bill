@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { Receipt, TrendingUp, TrendingDown, CheckCircle, Clock, ChevronDown, X, Search } from "lucide-react";
 import { User } from "firebase/auth";
 import { Bill, Friend } from "@/hooks/useData";
@@ -27,6 +27,38 @@ export default function DashboardPage({
     const [filterPaidBy, setFilterPaidBy] = useState<string>("");
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [showPaidByDropdown, setShowPaidByDropdown] = useState(false);
+    
+    // Save scroll position using window scroll event
+    useEffect(() => {
+        const handleScroll = () => {
+            try {
+                localStorage.setItem(
+                    "dashboardScrollPosition",
+                    window.scrollY.toString()
+                );
+            } catch (error) {
+                console.error("Error saving scroll position:", error);
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
+    // Restore scroll position when component mounts
+    useEffect(() => {
+        try {
+            const savedPosition = localStorage.getItem("dashboardScrollPosition");
+            if (savedPosition) {
+                // Use setTimeout to ensure DOM is ready
+                setTimeout(() => {
+                    window.scrollTo(0, parseInt(savedPosition, 10));
+                }, 0);
+            }
+        } catch (error) {
+            console.error("Error restoring scroll position:", error);
+        }
+    }, []);
     
     // Memoize safe number parsing
     const safeNumber = useCallback((value: any) => {
@@ -148,7 +180,9 @@ export default function DashboardPage({
     const totalBills = filteredBills.length;
 
     return (
-        <div className="space-y-4 md:space-y-6">
+        <div
+            className="space-y-4 md:space-y-6 pb-8"
+        >
             <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
@@ -387,7 +421,18 @@ export default function DashboardPage({
                             return (
                                 <button
                                     key={bill.id}
-                                    onClick={() => onViewBill(bill.id)}
+                                    onClick={() => {
+                                        // Save scroll position before navigating to bill details
+                                        try {
+                                            localStorage.setItem(
+                                                "dashboardScrollPosition",
+                                                window.scrollY.toString()
+                                            );
+                                        } catch (error) {
+                                            console.error("Error saving scroll position:", error);
+                                        }
+                                        onViewBill(bill.id);
+                                    }}
                                     className="w-full bg-white p-3 md:p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all text-left flex justify-between items-center gap-2 md:gap-4 group"
                                 >
                                     <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
